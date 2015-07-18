@@ -27,8 +27,8 @@ extern "C" {
 int initMFX (StateMachine *stateMachine)
 {
     AVFormatContext *pFormatCtx = stateMachine->pFormatCtx;
-    int videoStreamId = stateMachine->videoStream;
-    MFXOptions options = stateMachine->mfxOptions;
+    int videoStreamId = *stateMachine->videoStream;
+    MFXOptions *options = stateMachine->mfxOptions;
 
 
 
@@ -44,30 +44,29 @@ int initMFX (StateMachine *stateMachine)
     //
 
     // Read options from the command line (if any is given)
-    memset(&options, 0, sizeof(CmdOptions));
-    //options.options = OPTIONS_ENCODE;
+    //options->options = OPTIONS_ENCODE;
     // Set default values:
-    options.impl = MFX_IMPL_HARDWARE;
+    options->impl = MFX_IMPL_HARDWARE;
 
     // here we parse options
     //ParseOptions(argc, argv, &options);
 
-    options.Width = (mfxU16)pFormatCtx->streams[videoStreamId]->codec->width;
-    options.Height = (mfxU16)pFormatCtx->streams[videoStreamId]->codec->height;
+    options->Width = (mfxU16)pFormatCtx->streams[videoStreamId]->codec->width;
+    options->Height = (mfxU16)pFormatCtx->streams[videoStreamId]->codec->height;
 
-    options.FrameRateN = (mfxU16)pFormatCtx->streams[videoStreamId]->avg_frame_rate.num;
-    options.FrameRateD = (mfxU16)pFormatCtx->streams[videoStreamId]->avg_frame_rate.den;
+    options->FrameRateN = (mfxU16)pFormatCtx->streams[videoStreamId]->avg_frame_rate.num;
+    options->FrameRateD = (mfxU16)pFormatCtx->streams[videoStreamId]->avg_frame_rate.den;
 
-    options.MeasureLatency = false;
+    options->MeasureLatency = false;
 
 
-    printf("%i %i %i %i\n", options.Width, options.Height, options.FrameRateN, options.FrameRateD);
+    printf("%i %i %i %i\n", options->Width, options->Height, options->FrameRateN, options->FrameRateD);
 
     // Initialize Intel Media SDK session
     // - MFX_IMPL_AUTO_ANY selects HW acceleration if available (on any adapter)
     // - Version 1.0 is selected for greatest backwards compatibility.
     //   If more recent API features are needed, change the version accordingly
-    mfxIMPL impl = options.impl;
+    mfxIMPL impl = options->impl;
     mfxVersion ver = { {0, 1} };
     MFXVideoSession session;
 
@@ -80,25 +79,31 @@ int initMFX (StateMachine *stateMachine)
     mfxVideoParam mfxEncParams;
     memset(&mfxEncParams, 0, sizeof(mfxEncParams));
     mfxEncParams.mfx.CodecId = MFX_CODEC_AVC;
+    mfxEncParams.mfx.CodecProfile = MFX_PROFILE_AVC_MAIN;
+    mfxEncParams.mfx.CodecLevel = MFX_LEVEL_AVC_32;
     mfxEncParams.mfx.TargetUsage = MFX_TARGETUSAGE_BALANCED;
-    mfxEncParams.mfx.TargetKbps = options.Bitrate;
+    mfxEncParams.mfx.TargetKbps = options->Bitrate;
     mfxEncParams.mfx.RateControlMethod = MFX_RATECONTROL_CBR;
-    mfxEncParams.mfx.FrameInfo.FrameRateExtN = options.FrameRateN;
-    mfxEncParams.mfx.FrameInfo.FrameRateExtD = options.FrameRateD;
+    mfxEncParams.mfx.FrameInfo.FrameRateExtN = options->FrameRateN;
+    mfxEncParams.mfx.FrameInfo.FrameRateExtD = options->FrameRateD;
     mfxEncParams.mfx.FrameInfo.FourCC = MFX_FOURCC_NV12;
     mfxEncParams.mfx.FrameInfo.ChromaFormat = MFX_CHROMAFORMAT_YUV420;
     mfxEncParams.mfx.FrameInfo.PicStruct = MFX_PICSTRUCT_PROGRESSIVE;
     mfxEncParams.mfx.FrameInfo.CropX = 0;
     mfxEncParams.mfx.FrameInfo.CropY = 0;
-    mfxEncParams.mfx.FrameInfo.CropW = options.Width;
-    mfxEncParams.mfx.FrameInfo.CropH = options.Height;
+    mfxEncParams.mfx.FrameInfo.CropW = options->Width;
+    mfxEncParams.mfx.FrameInfo.CropH = options->Height;
+
+    mfxEncParams.mfx.GopOptFlag = MFX_GOP_STRICT;
+    mfxEncParams.mfx.GopPicSize = options->FrameRateN * 2;
+    //mfxEncParams.mfx.GopRefDist = 1; // Seems to not be honored at all.
     // Width must be a multiple of 16
     // Height must be a multiple of 16 in case of frame picture and a multiple of 32 in case of field picture
-    mfxEncParams.mfx.FrameInfo.Width = MSDK_ALIGN16(options.Width);
+    mfxEncParams.mfx.FrameInfo.Width = MSDK_ALIGN16(options->Width);
     mfxEncParams.mfx.FrameInfo.Height =
         (MFX_PICSTRUCT_PROGRESSIVE == mfxEncParams.mfx.FrameInfo.PicStruct) ?
-        MSDK_ALIGN16(options.Height) :
-        MSDK_ALIGN32(options.Height);
+        MSDK_ALIGN16(options->Height) :
+        MSDK_ALIGN32(options->Height);
 
 
 

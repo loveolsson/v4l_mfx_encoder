@@ -9,6 +9,7 @@ extern "C" {
 
 #include "struct.h"
 
+#include "mfx.h"
 
 
 
@@ -19,7 +20,7 @@ void *frameReadLoop(StateMachine *stateMachine) {
   //StateMachine stateMachine = (StateMachine *)stateMachine_;
 
 
-  int videoStream = stateMachine->videoStream;
+  int videoStream = *stateMachine->videoStream;
   AVFormatContext *pFormatCtx = stateMachine->pFormatCtx;
 
 
@@ -73,14 +74,16 @@ void *frameReadLoop(StateMachine *stateMachine) {
 }
 
 int initInputDevice (char *format, char *filenameSrc, StateMachine *stateMachine) {
-  int videoStreamId = stateMachine->videoStream;
+  int videoStreamId = -1;
+  stateMachine->videoStream = &videoStreamId;
   AVFormatContext *pFormatCtx = stateMachine->pFormatCtx;
-  AVInputFormat *iformat = stateMachine->iformat;
 
   avdevice_register_all();
   avcodec_register_all();
 
-  iformat = av_find_input_format(format);
+  stateMachine->iformat = av_find_input_format(format);
+  AVInputFormat *iformat = stateMachine->iformat;
+
 
   printf("%s\n", format);
 
@@ -90,7 +93,6 @@ int initInputDevice (char *format, char *filenameSrc, StateMachine *stateMachine
   if(avformat_find_stream_info(pFormatCtx, NULL) < 0)   return -13;
   av_dump_format(pFormatCtx, 0, filenameSrc, 0);
 
-  videoStreamId = -1;
   for(unsigned int i=0; i < pFormatCtx->nb_streams; i++)
   {
     if(pFormatCtx->streams[i]->codec->coder_type==AVMEDIA_TYPE_VIDEO)
@@ -102,7 +104,7 @@ int initInputDevice (char *format, char *filenameSrc, StateMachine *stateMachine
 
   if(videoStreamId == -1) return -14;
 
-  //printf("%i %i %i %i\n", pFormatCtx->streams[videoStreamId]->codec->width, pFormatCtx->streams[videoStreamId]->codec->height, pFormatCtx->streams[videoStreamId]->codec->framerate.num, pFormatCtx->streams[videoStreamId]->codec->framerate.den);
+  printf("%i %i %i %i\n", pFormatCtx->streams[videoStreamId]->codec->width, pFormatCtx->streams[videoStreamId]->codec->height, pFormatCtx->streams[videoStreamId]->codec->framerate.num, pFormatCtx->streams[videoStreamId]->codec->framerate.den);
 
 
 

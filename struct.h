@@ -41,8 +41,8 @@ typedef struct MFXOptions {
 } MFXOptions;
 
 typedef struct StateMachine {
-     int videoStream;
+     int *videoStream;
      AVFormatContext *pFormatCtx;
      AVInputFormat *iformat;
-     MFXOptions mfxOptions;
+     MFXOptions *mfxOptions;
 } StateMachine;

@@ -22,7 +22,14 @@ int main(int argc, char *argv[])
   char  *filenameSrc = "/dev/video0";
 
   stateMachine.pFormatCtx = avformat_alloc_context();
-  stateMachine.mfxOptions.Bitrate = (mfxU16)3500;
+
+  MFXOptions mfxOptions;
+  memset(&mfxOptions, 0, sizeof(MFXOptions));
+
+
+  mfxOptions.Bitrate = (mfxU16)3500;
+
+  stateMachine.mfxOptions = &mfxOptions;
 
 
 
@@ -34,7 +41,7 @@ int main(int argc, char *argv[])
 
   std::thread frameReadThread(&frameReadLoop, &stateMachine);
 
-  //frameReadLoop(&stateMachine);
+  frameReadLoop(&stateMachine);
 
 
   frameReadThread.join();
