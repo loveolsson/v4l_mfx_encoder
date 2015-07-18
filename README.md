@@ -10,7 +10,7 @@ The plan is to create a encoder that grabs from V4L2 and ALSA with libav abstrac
 Instances of avconv connects to the TCP socket and then distributes to RTMP-servers.
 
 It depends on:
-  CentOS 7
-  Intel Media SDK and it's custom libdrm and libav
-  libav
-  avconv
+  -CentOS 7
+  -Intel Media SDK and it's custom libdrm and libav
+  -libav
+  -avconv
