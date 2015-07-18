@@ -1,0 +1,2 @@
+#/bin/bash
+g++ -o hwencoder hwencoder.c `pkg-config --cflags --libs libavformat libswscale libavdevice libavcodec libavutil` -std=c99 -Wdeprecated-declarations `sdl-config --cflags --libs` -Wimplicit-function-declaration
