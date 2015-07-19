@@ -1,5 +1,7 @@
 #include "mfxdefs.h"
 #include "mfxstructures.h"
+#include "common_utils.h"
+
 
 #define OPTION_IMPL             0x001
 #define OPTION_GEOMETRY         0x002
@@ -40,9 +42,25 @@ typedef struct MFXOptions {
     bool MeasureLatency; // OPTION_MEASURE_LATENCY
 } MFXOptions;
 
+
+typedef struct MFXRuntimeVars {
+     MFXVideoENCODE *mfxENC;
+     mfxU16 nEncSurfNum;
+     mfxFrameSurface1** pmfxSurfaces;
+     mfxU16 taskPoolSize;
+     Task* pTasks;
+     mfxFrameAllocResponse *mfxResponse;
+     mfxFrameAllocator mfxAllocator;
+     int nFirstSyncTask;
+     MFXVideoSession session;
+} MFXRuntimeVars;
+
+
+
 typedef struct StateMachine {
-     int *videoStream;
+     int videoStream;
      AVFormatContext *pFormatCtx;
+     AVCodecContext  *pCodecCtx;
      AVInputFormat *iformat;
      MFXOptions *mfxOptions;
 } StateMachine;

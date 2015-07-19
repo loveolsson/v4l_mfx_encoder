@@ -1,9 +1,9 @@
 #ifdef __cplusplus
 extern "C" {
-#endif
-#include <libavdevice/avdevice.h>
-#include <libavformat/avformat.h>
-#ifdef __cplusplus
+  #endif
+  #include <libavdevice/avdevice.h>
+  #include <libavformat/avformat.h>
+  #ifdef __cplusplus
 }
 #endif
 
@@ -40,20 +40,18 @@ int main(int argc, char *argv[])
 
 
   std::thread frameReadThread(&frameReadLoop, &stateMachine);
-
-  frameReadLoop(&stateMachine);
-
-
   frameReadThread.join();
 
+  //closeMFX(&stateMachine);
 
 
 
 
+  Release();
 
 
-    //av_free(pFrame);
-    avformat_close_input(&stateMachine.pFormatCtx);
 
-    return 0;
+  avformat_close_input(&stateMachine.pFormatCtx);
+
+  return 0;
 }

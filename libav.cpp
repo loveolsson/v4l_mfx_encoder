@@ -8,7 +8,6 @@ extern "C" {
 #endif
 
 #include "struct.h"
-
 #include "mfx.h"
 
 
@@ -19,30 +18,34 @@ extern "C" {
 void *frameReadLoop(StateMachine *stateMachine) {
   //StateMachine stateMachine = (StateMachine *)stateMachine_;
 
+  AVFormatContext* pFormatCtx = stateMachine->pFormatCtx;
+  AVCodecContext*  pCodecCtx = stateMachine->pCodecCtx;
 
-  int videoStream = *stateMachine->videoStream;
-  AVFormatContext *pFormatCtx = stateMachine->pFormatCtx;
 
-
-  unsigned int res;
+  int res, copyres;
   AVPacket packet;
+  AVFrame *pFrame = avcodec_alloc_frame();
+  int frameFinished;
 
   int64_t lastpts = 0;
 
   while((res = av_read_frame(pFormatCtx,&packet)) >= 0)
   {
 
-    if(packet.stream_index == videoStream){
+    if(packet.stream_index == stateMachine->videoStream){
 
-      //avcodec_decode_video2(pCodecCtx,pFrame,&frameFinished,&packet);
 
       //if(frameFinished){
       printf("%jd, %i\n", packet.pts-lastpts, packet.data[500]);
       lastpts = packet.pts;
 
-        for (int i = 0; i < packet.size; i++) {
 
-        }
+      copyres = copyRawFrame(stateMachine, &packet);
+      if (copyres == 0) {
+        printf("Funkar: %i\n", copyres);
+      } else {
+        printf("Frame drop: %i\n", copyres);
+      }
 
 
 
@@ -66,6 +69,8 @@ void *frameReadLoop(StateMachine *stateMachine) {
   }
 
   av_free_packet(&packet);
+  av_free(pFrame);
+
 
 
 
@@ -74,9 +79,12 @@ void *frameReadLoop(StateMachine *stateMachine) {
 }
 
 int initInputDevice (char *format, char *filenameSrc, StateMachine *stateMachine) {
-  int videoStreamId = -1;
-  stateMachine->videoStream = &videoStreamId;
+  stateMachine->videoStream = -1;
   AVFormatContext *pFormatCtx = stateMachine->pFormatCtx;
+  AVCodecContext  *pCodecCtx;
+  AVCodec * pCodec;
+
+
 
   avdevice_register_all();
   avcodec_register_all();
@@ -97,14 +105,19 @@ int initInputDevice (char *format, char *filenameSrc, StateMachine *stateMachine
   {
     if(pFormatCtx->streams[i]->codec->coder_type==AVMEDIA_TYPE_VIDEO)
     {
-      videoStreamId = i;
+      stateMachine->videoStream = i;
       break;
     }
   }
 
-  if(videoStreamId == -1) return -14;
+  if(stateMachine->videoStream == -1) return -14;
+  pCodecCtx = pFormatCtx->streams[stateMachine->videoStream]->codec;
+  stateMachine->pCodecCtx = pCodecCtx;
+  pCodec =avcodec_find_decoder(pCodecCtx->codec_id);
+  if(avcodec_open2(pCodecCtx,pCodec,NULL) < 0) return -16;
 
-  printf("%i %i %i %i\n", pFormatCtx->streams[videoStreamId]->codec->width, pFormatCtx->streams[videoStreamId]->codec->height, pFormatCtx->streams[videoStreamId]->codec->framerate.num, pFormatCtx->streams[videoStreamId]->codec->framerate.den);
+
+  printf("%i %i %i %i\n", pFormatCtx->streams[stateMachine->videoStream]->codec->width, pFormatCtx->streams[stateMachine->videoStream]->codec->height, pFormatCtx->streams[stateMachine->videoStream ]->codec->framerate.num, pFormatCtx->streams[stateMachine->videoStream]->codec->framerate.den);
 
 
 
