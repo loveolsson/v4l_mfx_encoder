@@ -44,15 +44,15 @@ typedef struct MFXOptions {
 
 
 typedef struct MFXRuntimeVars {
-     MFXVideoENCODE *mfxENC;
-     mfxU16 nEncSurfNum;
-     mfxFrameSurface1** pmfxSurfaces;
-     mfxU16 taskPoolSize;
-     Task* pTasks;
-     mfxFrameAllocResponse *mfxResponse;
-     mfxFrameAllocator mfxAllocator;
-     int nFirstSyncTask;
-     MFXVideoSession session;
+  MFXVideoSession session;
+  mfxFrameAllocator* mfxAllocator;
+  mfxVideoParam* mfxEncParams;
+  mfxFrameAllocResponse* mfxResponse;
+  mfxU16* taskPoolSize;
+  Task* pTasks;
+  mfxFrameSurface1*** pmfxSurfaces;
+  mfxU16* nEncSurfNum;
+  mfxEncodeCtrl* ctrl;
 } MFXRuntimeVars;
 
 
