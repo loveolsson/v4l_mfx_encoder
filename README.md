@@ -14,3 +14,5 @@ It depends on:
   * Intel Media SDK and it's custom libdrm and libav
   * libav
   * avconv
+
+<img src="http://userserve-ak.last.fm/serve/252/254990.jpg" alt="Klaus Wunderlich">

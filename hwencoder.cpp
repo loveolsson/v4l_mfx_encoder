@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
   char  *formatName = "video4linux2";
   char  *filenameSrc = "/dev/video0";
 
-  stateMachine.pFormatCtx = avformat_alloc_context();
+  stateMachine.pFormatCtxVideo = avformat_alloc_context();
 
   MFXOptions mfxOptions;
   memset(&mfxOptions, 0, sizeof(MFXOptions));
@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
 
 
 
-  initInputDevice(formatName, filenameSrc, &stateMachine);
+  initInputDevice("video4linux2", "/dev/video0", "alsa", "hw:2", &stateMachine);
   mfxInit(&stateMachine);
 
 
@@ -50,7 +50,8 @@ int main(int argc, char *argv[])
 
 
 
-  avformat_close_input(&stateMachine.pFormatCtx);
+  avformat_close_input(&stateMachine.pFormatCtxVideo);
+  avformat_close_input(&stateMachine.pFormatCtxAudio);
 
   return 0;
 }

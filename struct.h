@@ -49,14 +49,16 @@ typedef struct MFXOptions {
 
 typedef struct StateMachine {
      int videoStream;
-     AVFormatContext *pFormatCtx;
-     AVCodecContext  *pCodecCtx;
-     AVInputFormat *iformat;
+     int audioStream;
+     AVFormatContext *pFormatCtxVideo;
+     AVFormatContext *pFormatCtxAudio;
+     AVCodecContext  *pCodecCtxVideo;
+     AVCodecContext  *pCodecCtxAudio;
+     AVInputFormat *iformatVideo;
+     AVInputFormat *iformatAudio;
      MFXOptions *mfxOptions;
 
      AVPacket rawPacket[RAW_VIDEO_QUEUE_LENGTH];
      int rawPacketRead = 0;
-     int rawPacketLocked = 0;
      int rawPacketWritten = 0;
-     int rawPacketDiscard = 0;
 } StateMachine;

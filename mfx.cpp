@@ -91,7 +91,7 @@
   int mfxInit (StateMachine *stateMachine) {
     mfxStatus sts = MFX_ERR_NONE;
     MFXOptions *options = stateMachine->mfxOptions;
-    AVFormatContext *pFormatCtx = stateMachine->pFormatCtx;
+    AVFormatContext *pFormatCtxVideo = stateMachine->pFormatCtxVideo;
 
     // =====================================================================
     // Intel Media SDK encode pipeline setup
@@ -104,15 +104,14 @@
     //options.ctx.options = OPTIONS_ENCODE;
     // Set default values:
 
-    options->Width = (mfxU16)pFormatCtx->streams[stateMachine->videoStream]->codec->width;
-    options->Height = (mfxU16)pFormatCtx->streams[stateMachine->videoStream]->codec->height;
+    options->Width = (mfxU16)pFormatCtxVideo->streams[stateMachine->videoStream]->codec->width;
+    options->Height = (mfxU16)pFormatCtxVideo->streams[stateMachine->videoStream]->codec->height;
 
-    options->FrameRateN = (mfxU16)pFormatCtx->streams[stateMachine->videoStream]->avg_frame_rate.num;
-    options->FrameRateD = (mfxU16)pFormatCtx->streams[stateMachine->videoStream]->avg_frame_rate.den;
+    options->FrameRateN = (mfxU16)pFormatCtxVideo->streams[stateMachine->videoStream]->avg_frame_rate.num;
+    options->FrameRateD = (mfxU16)pFormatCtxVideo->streams[stateMachine->videoStream]->avg_frame_rate.den;
 
 
     memset(&ctrl, 0, sizeof(mfxEncodeCtrl));
-
 
 
     // Initialize Intel Media SDK session
@@ -148,6 +147,7 @@
 
     mfxEncParams.mfx.GopOptFlag = MFX_GOP_STRICT;
     mfxEncParams.mfx.GopPicSize = options->FrameRateN * 2;
+    mfxEncParams.mfx.GopRefDist = 0;
 
     printf("%i\n", mfxEncParams.mfx.GopPicSize);
     //mfxEncParams.mfx.GopRefDist = 1; // Seems to not be honored at all.
@@ -322,63 +322,14 @@
         }
     }
 
-    // MFX_ERR_MORE_DATA means that the input file has ended, need to go to buffering loop, exit in case of other errors
-    MSDK_IGNORE_MFX_STS(sts, MFX_ERR_MORE_DATA);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-    //
-    // Stage 2: Retrieve the buffered encoded frames
-    //
-    while (MFX_ERR_NONE <= sts) {
-        nTaskIdx = GetFreeTaskIndex(pTasks, taskPoolSize);      // Find free task
-        if (MFX_ERR_NOT_FOUND == nTaskIdx) {
-            // No more free tasks, need to sync
-            sts = session.SyncOperation(pTasks[nFirstSyncTask].syncp, 60000);
-            MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-            // sts = WriteBitStreamFrame(&pTasks[nFirstSyncTask].mfxBS, fSink);
-            // MSDK_BREAK_ON_ERROR(sts);
-                                        pTasks[nFirstSyncTask].mfxBS.DataLength = 0;
-
-
-            pTasks[nFirstSyncTask].syncp = NULL;
-            nFirstSyncTask = (nFirstSyncTask + 1) % taskPoolSize;
-
-            ++nFrame;
-            printf("Frame number: %d\n", nFrame);
-            fflush(stdout);
-        } else {
-            for (;;) {
-                // Encode a frame asychronously (returns immediately)
-                sts = MFXVideoENCODE_EncodeFrameAsync(session, &ctrl, NULL, &pTasks[nTaskIdx].mfxBS, &pTasks[nTaskIdx].syncp);
-
-                if (MFX_ERR_NONE < sts && !pTasks[nTaskIdx].syncp) {    // Repeat the call if warning and no output
-                    if (MFX_WRN_DEVICE_BUSY == sts)
-                        MSDK_SLEEP(1);  // Wait if device is busy, then repeat the same call
-                } else if (MFX_ERR_NONE < sts
-                           && pTasks[nTaskIdx].syncp) {
-                    sts = MFX_ERR_NONE;     // Ignore warnings if output is available
-                    break;
-                } else
-                    break;
-            }
-        }
-    }
-
-    // MFX_ERR_MORE_DATA indicates that there are no more buffered frames, exit in case of other errors
-    MSDK_IGNORE_MFX_STS(sts, MFX_ERR_MORE_DATA);
-    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-    //
-    // Stage 3: Sync all remaining tasks in task pool
-    //
     while (pTasks[nFirstSyncTask].syncp) {
         sts = session.SyncOperation(pTasks[nFirstSyncTask].syncp, 60000);
         MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-        //
-        // sts = WriteBitStreamFrame(&pTasks[nFirstSyncTask].mfxBS, fSink);
-        // MSDK_BREAK_ON_ERROR(sts);
-                                          pTasks[nFirstSyncTask].mfxBS.DataLength = 0;
+
+        pTasks[nFirstSyncTask].mfxBS.DataLength = 0;
 
 
         pTasks[nFirstSyncTask].syncp = NULL;
@@ -399,19 +350,17 @@
     //  - It is recommended to close Media SDK components first, before releasing allocated surfaces, since
     //    some surfaces may still be locked by internal Media SDK resources.
 
-    // MFXVideoENCODE_Close(session);
-    // // session closed automatically on destruction
-    //
-    // for (int i = 0; i < nEncSurfNum; i++)
-    //     delete pmfxSurfaces[i];
-    // MSDK_SAFE_DELETE_ARRAY(pmfxSurfaces);
-    // for (int i = 0; i < taskPoolSize; i++)
-    //     MSDK_SAFE_DELETE_ARRAY(pTasks[i].mfxBS.Data);
-    // MSDK_SAFE_DELETE_ARRAY(pTasks);
-    //
-    // mfxAllocator.Free(mfxAllocator.pthis, &mfxResponse);
+    MFXVideoENCODE_Close(session);
+    // session closed automatically on destruction
 
+    for (int i = 0; i < nEncSurfNum; i++)
+        delete pmfxSurfaces[i];
+    MSDK_SAFE_DELETE_ARRAY(pmfxSurfaces);
+    for (int i = 0; i < taskPoolSize; i++)
+        MSDK_SAFE_DELETE_ARRAY(pTasks[i].mfxBS.Data);
+    MSDK_SAFE_DELETE_ARRAY(pTasks);
 
+    mfxAllocator.Free(mfxAllocator.pthis, &mfxResponse);
 
 
     return 0;
