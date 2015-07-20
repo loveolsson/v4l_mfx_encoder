@@ -11,8 +11,24 @@ extern "C" {
 #include "mfx.h"
 
 
+int rawPacket_nextFree (StateMachine *stateMachine) {
+  if ((stateMachine->rawPacketLocked + 1) % RAW_VIDEO_QUEUE_LENGTH == stateMachine->rawPacketRead) return -1;
+  stateMachine->rawPacketLocked = (stateMachine->rawPacketLocked + 1) % RAW_VIDEO_QUEUE_LENGTH;
+  return stateMachine->rawPacketLocked;
+}
 
+int rawPacket_nextWritten (StateMachine *stateMachine) {
+  if (stateMachine->rawPacketWritten == stateMachine->rawPacketRead) return -1;
+  return (stateMachine->rawPacketRead + 1) % RAW_VIDEO_QUEUE_LENGTH;
+}
 
+int rawPacket_markWritten (StateMachine *stateMachine, int written) {
+  stateMachine->rawPacketWritten = written;
+}
+
+int rawPacket_markRead (StateMachine *stateMachine, int read) {
+  stateMachine->rawPacketRead = read;
+}
 
 
 void *frameReadLoop(StateMachine *stateMachine) {
@@ -21,55 +37,53 @@ void *frameReadLoop(StateMachine *stateMachine) {
   AVFormatContext* pFormatCtx = stateMachine->pFormatCtx;
   AVCodecContext*  pCodecCtx = stateMachine->pCodecCtx;
 
-
   int res, copyres;
-  AVPacket packet;
-  AVFrame *pFrame = avcodec_alloc_frame();
+  AVPacket* packet;
   int frameFinished;
 
   int64_t lastpts = 0;
+  int next = -1;
 
-  while((res = av_read_frame(pFormatCtx,&packet)) >= 0)
-  {
-
-    if(packet.stream_index == stateMachine->videoStream){
-
-
-      //if(frameFinished){
-      printf("%jd, %i\n", packet.pts-lastpts, packet.data[500]);
-      lastpts = packet.pts;
+  for (;;) {
+    next = rawPacket_nextFree(stateMachine);
+    if (next >= 0) {
 
 
-      copyres = copyRawFrame(stateMachine, &packet);
-      if (copyres == 0) {
-        printf("Funkar: %i\n", copyres);
+      packet = &stateMachine->rawPacket[next];
+
+      res = av_read_frame(pFormatCtx,packet);
+      if (res < 0) break;
+
+
+      if(packet->stream_index == stateMachine->videoStream){
+
+
+
+        //if(frameFinished){
+        printf("Frame time: %jd, Buffer in: %i\n", packet->pts-lastpts, next);
+        lastpts = packet->pts;
+
+        rawPacket_markWritten(stateMachine, next);
+        // copyres = copyRawFrame(stateMachine, packet);
+        // if (copyres == 0) {
+        //   printf("Funkar: %i\n", copyres);
+        // } else {
+        //   printf("Frame drop: %i\n", copyres);
+        // }
+
+
+
+
+            }
+        //av_free_packet(packet);
+        // sws_freeContext(img_convert_ctx);
       } else {
-        printf("Frame drop: %i\n", copyres);
+        //printf("%s\n", "Frame dropped - raw buffer full");
       }
-
-
-
-
-      // struct SwsContext * img_convert_ctx;
-      // img_convert_ctx = sws_getCachedContext(NULL,pCodecCtx->width, pCodecCtx->height, pCodecCtx->pix_fmt,   pCodecCtx->width, pCodecCtx->height, AV_PIX_FMT_BGR24, SWS_BICUBIC, NULL, NULL,NULL);
-      // sws_scale(img_convert_ctx, ((AVPicture*)pFrame)->data, ((AVPicture*)pFrame)->linesize, 0, pCodecCtx->height, ((AVPicture *)pFrameRGB)->data, ((AVPicture *)pFrameRGB)->linesize);
-      //
-      // //OpenCV
-      // cv::Mat img(pFrame->height,pFrame->width,CV_8UC3,pFrameRGB->data[0]);
-      // cv::imshow("display",img);
-      // cvWaitKey(1);
-      //
-      av_free_packet(&packet);
-      // sws_freeContext(img_convert_ctx);
-
-    }
-
-    //}
 
   }
 
-  av_free_packet(&packet);
-  av_free(pFrame);
+
 
 
 

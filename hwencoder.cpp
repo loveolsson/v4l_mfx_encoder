@@ -26,21 +26,20 @@ int main(int argc, char *argv[])
   MFXOptions mfxOptions;
   memset(&mfxOptions, 0, sizeof(MFXOptions));
 
-
   mfxOptions.Bitrate = (mfxU16)3500;
-
   stateMachine.mfxOptions = &mfxOptions;
 
 
 
 
   initInputDevice(formatName, filenameSrc, &stateMachine);
-
-  initMFX(&stateMachine);
+  mfxInit(&stateMachine);
 
 
   std::thread frameReadThread(&frameReadLoop, &stateMachine);
+  std::thread encoderLoopThread(&mfxEncoderLoop, &stateMachine);
   frameReadThread.join();
+  encoderLoopThread.join();
 
   //closeMFX(&stateMachine);
 

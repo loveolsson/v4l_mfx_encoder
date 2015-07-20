@@ -23,6 +23,8 @@
 
 #define MSDK_MAX_PATH 280
 
+#define RAW_VIDEO_QUEUE_LENGTH 4
+
 
 
 typedef struct MFXOptions {
@@ -43,18 +45,6 @@ typedef struct MFXOptions {
 } MFXOptions;
 
 
-typedef struct MFXRuntimeVars {
-  MFXVideoSession session;
-  mfxFrameAllocator* mfxAllocator;
-  mfxVideoParam* mfxEncParams;
-  mfxFrameAllocResponse* mfxResponse;
-  mfxU16* taskPoolSize;
-  Task* pTasks;
-  mfxFrameSurface1*** pmfxSurfaces;
-  mfxU16* nEncSurfNum;
-  mfxEncodeCtrl* ctrl;
-} MFXRuntimeVars;
-
 
 
 typedef struct StateMachine {
@@ -63,4 +53,10 @@ typedef struct StateMachine {
      AVCodecContext  *pCodecCtx;
      AVInputFormat *iformat;
      MFXOptions *mfxOptions;
+
+     AVPacket rawPacket[RAW_VIDEO_QUEUE_LENGTH];
+     int rawPacketRead = 0;
+     int rawPacketLocked = 0;
+     int rawPacketWritten = 0;
+     int rawPacketDiscard = 0;
 } StateMachine;

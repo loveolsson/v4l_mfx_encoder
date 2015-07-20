@@ -19,8 +19,9 @@
   #ifdef __cplusplus
   }
   #endif
+  #include "libav.h"
 
-  #include "struct.h"
+
 
   void convert_yuv422_to_yuv420(uint8_t *InBuff, mfxFrameData* OutBuff, int width,int height)
   {
@@ -63,14 +64,14 @@
               V2 = InBuff[line2++];
 
               /* Write Output Buffer */
-              // ptrY[m++] = Y1;
-              // ptrY[m++] = Y2;
-              //
-              // ptrY[n++] = Y3;
-              // ptrY[n++] = Y4;
-              //
-              // prtUV[u++] = (U + U2)/2;
-              // prtUV[u++] = (V + V2)/2;
+              ptrY[m++] = Y1;
+              ptrY[m++] = Y2;
+
+              ptrY[n++] = Y3;
+              ptrY[n++] = Y4;
+
+              prtUV[u++] = (U + U2)/2;
+              prtUV[u++] = (V + V2)/2;
           }
       }
   }
@@ -87,7 +88,7 @@
 
 
 
-  int initMFX (StateMachine *stateMachine) {
+  int mfxInit (StateMachine *stateMachine) {
     mfxStatus sts = MFX_ERR_NONE;
     MFXOptions *options = stateMachine->mfxOptions;
     AVFormatContext *pFormatCtx = stateMachine->pFormatCtx;
@@ -132,9 +133,9 @@
     mfxEncParams.mfx.CodecId = MFX_CODEC_AVC;
     mfxEncParams.mfx.CodecProfile = MFX_PROFILE_AVC_MAIN;
     mfxEncParams.mfx.CodecLevel = MFX_LEVEL_AVC_32;
-    mfxEncParams.mfx.TargetUsage = MFX_TARGETUSAGE_BALANCED;
+    mfxEncParams.mfx.TargetUsage =  MFX_TARGETUSAGE_1;
     mfxEncParams.mfx.TargetKbps = options->Bitrate;
-    mfxEncParams.mfx.RateControlMethod = MFX_RATECONTROL_VBR;
+    mfxEncParams.mfx.RateControlMethod = MFX_RATECONTROL_CBR;
     mfxEncParams.mfx.FrameInfo.FrameRateExtN = options->FrameRateN;
     mfxEncParams.mfx.FrameInfo.FrameRateExtD = options->FrameRateD;
     mfxEncParams.mfx.FrameInfo.FourCC = MFX_FOURCC_NV12;
@@ -147,6 +148,8 @@
 
     mfxEncParams.mfx.GopOptFlag = MFX_GOP_STRICT;
     mfxEncParams.mfx.GopPicSize = options->FrameRateN * 2;
+
+    printf("%i\n", mfxEncParams.mfx.GopPicSize);
     //mfxEncParams.mfx.GopRefDist = 1; // Seems to not be honored at all.
     // Width must be a multiple of 16
     // Height must be a multiple of 16 in case of frame picture and a multiple of 32 in case of field picture
@@ -228,7 +231,7 @@
 
 }
 
-  int copyRawFrame(StateMachine *stateMachine, AVPacket *packet) {
+  int mfxEncoderLoop(StateMachine *stateMachine) {
     // ===================================
     // Start encoding the frames
     //
@@ -241,7 +244,14 @@
     int nFirstSyncTask = 0;
     mfxU32 nFrame = 0;
     int sts;
+    int nextRaw = -1;
+    AVPacket* rawPacket;
     //MFXVideoENCODE mfxENC = *mfxENC_;
+
+
+    FILE* fSink = NULL;
+        MSDK_FOPEN(fSink, "test.h264", "wb");
+        MSDK_CHECK_POINTER(fSink, MFX_ERR_NULL_PTR);
 
 
 
@@ -255,46 +265,59 @@
             sts = session.SyncOperation(pTasks[nFirstSyncTask].syncp, 60000);
             MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-            // sts = WriteBitStreamFrame(&pTasks[nFirstSyncTask].mfxBS, fSink);
-            // MSDK_BREAK_ON_ERROR(sts);
+            sts = WriteBitStreamFrame(&pTasks[nFirstSyncTask].mfxBS, fSink);
+            MSDK_BREAK_ON_ERROR(sts);
                                 pTasks[nFirstSyncTask].mfxBS.DataLength = 0;
 
             pTasks[nFirstSyncTask].syncp = NULL;
             nFirstSyncTask = (nFirstSyncTask + 1) % taskPoolSize;
 
             ++nFrame;
-            printf("Frame number: %d\r", nFrame);
+            printf("Frame number: %d\n", nFrame);
             fflush(stdout);
         } else {
-            nEncSurfIdx = GetFreeSurfaceIndex(pmfxSurfaces, nEncSurfNum);   // Find free frame surface
-            MSDK_CHECK_ERROR(MFX_ERR_NOT_FOUND, nEncSurfIdx, MFX_ERR_MEMORY_ALLOC);
+            nextRaw = rawPacket_nextWritten(stateMachine);
+            if (nextRaw >= 0) {
 
-            // Surface locking required when read/write D3D surfaces
-            sts = mfxAllocator.Lock(mfxAllocator.pthis, pmfxSurfaces[nEncSurfIdx]->Data.MemId, &(pmfxSurfaces[nEncSurfIdx]->Data));
-            MSDK_BREAK_ON_ERROR(sts);
+              nEncSurfIdx = GetFreeSurfaceIndex(pmfxSurfaces, nEncSurfNum);   // Find free frame surface
+              MSDK_CHECK_ERROR(MFX_ERR_NOT_FOUND, nEncSurfIdx, MFX_ERR_MEMORY_ALLOC);
 
-            sts = LoadRawFrame(pmfxSurfaces[nEncSurfIdx], NULL);
-            MSDK_BREAK_ON_ERROR(sts);
+              // Surface locking required when read/write D3D surfaces
+              sts = mfxAllocator.Lock(mfxAllocator.pthis, pmfxSurfaces[nEncSurfIdx]->Data.MemId, &(pmfxSurfaces[nEncSurfIdx]->Data));
+              MSDK_BREAK_ON_ERROR(sts);
 
-            sts = mfxAllocator.Unlock(mfxAllocator.pthis, pmfxSurfaces[nEncSurfIdx]->Data.MemId, &(pmfxSurfaces[nEncSurfIdx]->Data));
-            MSDK_BREAK_ON_ERROR(sts);
+              rawPacket = &stateMachine->rawPacket[nextRaw];
+              printf("Packet size:%i Buffer:%i\n", rawPacket->size, nextRaw);
 
-            for (;;) {
-                // Encode a frame asychronously (returns immediately)
-                sts = MFXVideoENCODE_EncodeFrameAsync(session, &ctrl, pmfxSurfaces[nEncSurfIdx], &pTasks[nTaskIdx].mfxBS, &pTasks[nTaskIdx].syncp);
+              if (rawPacket->size == stateMachine->mfxOptions->Width * stateMachine->mfxOptions->Height * 2)
+                convert_yuv422_to_yuv420(rawPacket->data, &pmfxSurfaces[nEncSurfIdx]->Data, stateMachine->mfxOptions->Width, stateMachine->mfxOptions->Height);
 
-                if (MFX_ERR_NONE < sts && !pTasks[nTaskIdx].syncp) {    // Repeat the call if warning and no output
-                    if (MFX_WRN_DEVICE_BUSY == sts)
-                        MSDK_SLEEP(1);  // Wait if device is busy, then repeat the same call
-                } else if (MFX_ERR_NONE < sts
-                           && pTasks[nTaskIdx].syncp) {
-                    sts = MFX_ERR_NONE;     // Ignore warnings if output is available
-                    break;
-                } else if (MFX_ERR_NOT_ENOUGH_BUFFER == sts) {
-                    // Allocate more bitstream buffer memory here if needed...
-                    break;
-                } else
-                    break;
+              rawPacket_markRead(stateMachine, nextRaw);
+
+              av_free_packet(rawPacket);
+
+              sts = mfxAllocator.Unlock(mfxAllocator.pthis, pmfxSurfaces[nEncSurfIdx]->Data.MemId, &(pmfxSurfaces[nEncSurfIdx]->Data));
+              MSDK_BREAK_ON_ERROR(sts);
+
+              for (;;) {
+                  // Encode a frame asychronously (returns immediately)
+                  sts = MFXVideoENCODE_EncodeFrameAsync(session, &ctrl, pmfxSurfaces[nEncSurfIdx], &pTasks[nTaskIdx].mfxBS, &pTasks[nTaskIdx].syncp);
+
+                  if (MFX_ERR_NONE < sts && !pTasks[nTaskIdx].syncp) {    // Repeat the call if warning and no output
+                      if (MFX_WRN_DEVICE_BUSY == sts)
+                          MSDK_SLEEP(1);  // Wait if device is busy, then repeat the same call
+                  } else if (MFX_ERR_NONE < sts
+                             && pTasks[nTaskIdx].syncp) {
+                      sts = MFX_ERR_NONE;     // Ignore warnings if output is available
+                      break;
+                  } else if (MFX_ERR_NOT_ENOUGH_BUFFER == sts) {
+                      // Allocate more bitstream buffer memory here if needed...
+                      break;
+                  } else
+                      break;
+              }
+            } else { //No frame to read
+              MSDK_SLEEP(1);  // Wait if device is busy, then repeat the same call
             }
         }
     }
@@ -322,7 +345,7 @@
             nFirstSyncTask = (nFirstSyncTask + 1) % taskPoolSize;
 
             ++nFrame;
-            printf("Frame number: %d\r", nFrame);
+            printf("Frame number: %d\n", nFrame);
             fflush(stdout);
         } else {
             for (;;) {
@@ -362,7 +385,7 @@
         nFirstSyncTask = (nFirstSyncTask + 1) % taskPoolSize;
 
         ++nFrame;
-        printf("Frame number: %d\r", nFrame);
+        printf("Frame number: %d\n", nFrame);
         fflush(stdout);
     }
 
@@ -394,6 +417,8 @@
     return 0;
   }
 
-int h264ReadLoop() {
 
+
+  int copyRawFrame(StateMachine *stateMachine, AVPacket *packet) {
+    return 0;
 }
